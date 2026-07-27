@@ -30,7 +30,13 @@ import logging
 import os
 import time
 
+os.environ.setdefault("ASCEND_RT_VISIBLE_DEVICES", "7")
+
 import torch
+from torch_npu.contrib import transfer_to_npu
+
+transfer_to_npu()
+torch.npu.config.allow_internal_format = False
 
 from bernini.cli import (
     add_common_args,
@@ -141,4 +147,12 @@ def main():
 
 
 if __name__ == "__main__":
+    # Ascend 910B 运行说明:
+    #   前置: source CANN 环境变量; pip install torch_npu(版本需匹配 CANN/PyTorch)
+    #   默认卡号见顶部 ASCEND_RT_VISIBLE_DEVICES(当前=7), 按服务器空闲卡调整
+    #   执行:
+    #     python run_all_tests.py                                  # 默认 1.3B
+    #     python run_all_tests.py --config checkpoints/bernini_14b # 切 14B
+    #   transfer_to_npu() 已在导入时把 cuda 调用重定向到 NPU,
+    #   故 main() 内 device 仍写 "cuda:0" 是有意为之.
     main()
