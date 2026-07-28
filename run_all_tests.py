@@ -33,9 +33,10 @@ import time
 os.environ.setdefault("ASCEND_RT_VISIBLE_DEVICES", "7")
 
 import torch
-from torch_npu.contrib import transfer_to_npu
+# torch_npu.contrib.transfer_to_npu is a module (not a callable); importing it
+# auto-applies the cuda->npu redirect. Do not call it.
+from torch_npu.contrib import transfer_to_npu  # noqa: F401
 
-transfer_to_npu()
 torch.npu.config.allow_internal_format = False
 
 from bernini.cli import (
@@ -153,6 +154,6 @@ if __name__ == "__main__":
     #   执行:
     #     python run_all_tests.py                                  # 默认 1.3B
     #     python run_all_tests.py --config checkpoints/bernini_14b # 切 14B
-    #   transfer_to_npu() 已在导入时把 cuda 调用重定向到 NPU,
+    #   transfer_to_npu 的导入即把 cuda 调用重定向到 NPU,
     #   故 main() 内 device 仍写 "cuda:0" 是有意为之.
     main()
