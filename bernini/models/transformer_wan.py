@@ -51,7 +51,7 @@ from ..parallel import (
 
 
 def _apply_rotary_emb(x: torch.Tensor, freqs: torch.Tensor) -> torch.Tensor:
-    x_rotated = torch.view_as_complex(x.to(torch.float64).unflatten(3, (-1, 2)))
+    x_rotated = torch.view_as_complex(x.to(torch.float32).unflatten(3, (-1, 2)))
     x_out = torch.view_as_real(x_rotated * freqs).flatten(3, 4)
     return x_out.type_as(x)
 
@@ -243,7 +243,7 @@ class WanRotaryPosEmbed(nn.Module):
         freqs = []
         for dim in [t_dim, h_dim, w_dim]:
             freq = get_1d_rotary_pos_embed(
-                dim, max_seq_len, theta, use_real=False, repeat_interleave_real=False, freqs_dtype=torch.float64
+                dim, max_seq_len, theta, use_real=False, repeat_interleave_real=False, freqs_dtype=torch.float32
             )
             freqs.append(freq)
         self.freqs = torch.cat(freqs, dim=1)
@@ -279,10 +279,10 @@ class WanRotaryPosEmbed(nn.Module):
             # trained id range) lands inside the trained manifold rather than
             # extrapolating to unseen integer ids. Integer ids reproduce the old
             # precomputed-table behaviour exactly.
-            pos = torch.tensor([float(source_id)], dtype=torch.float64, device=hidden_states.device)
+            pos = torch.tensor([float(source_id)], dtype=torch.float32, device=hidden_states.device)
             freqs_visual_id = get_1d_rotary_pos_embed(
                 self.attention_head_dim, pos, self.theta,
-                use_real=False, repeat_interleave_real=False, freqs_dtype=torch.float64,
+                use_real=False, repeat_interleave_real=False, freqs_dtype=torch.float32,
             )
             freqs_visual_id = freqs_visual_id.view(1, 1, 1, -1).expand(ppf, pph, ppw, -1)
             freqs_visual_id = freqs_visual_id.reshape(1, 1, ppf * pph * ppw, -1)
