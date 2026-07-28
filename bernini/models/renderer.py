@@ -170,7 +170,10 @@ class BerniniRendererModel(PreTrainedModel):
         from its name so every rank issues the same collectives.
         """
         import torch.distributed as dist
-        from torch.distributed.tensor import DTensor, distribute_tensor
+        try:
+            from torch.distributed.tensor import DTensor, distribute_tensor
+        except ImportError:
+            from torch.distributed._tensor import DTensor, distribute_tensor
 
         params = dict(self.named_parameters())
         if not any(p.is_meta or isinstance(p, DTensor) for p in params.values()):

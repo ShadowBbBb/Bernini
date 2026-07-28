@@ -16,14 +16,21 @@ import torch
 import torch.nn as nn
 import torch.distributed as dist
 import os
-from transformers import UMT5EncoderModel, Qwen2_5_VLConfig
+from transformers import UMT5EncoderModel
+try:
+    from transformers import Qwen2_5_VLConfig
+except ImportError:
+    Qwen2_5_VLConfig = None
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import logging
 
 from .diffloss_fm import DiffLoss_FM
 from .wan_diffusion import GEN_Wanx22
-from .modeling_qwen2_5_vl import Qwen2_5_VLForConditionalGeneration
+try:
+    from .modeling_qwen2_5_vl import Qwen2_5_VLForConditionalGeneration
+except ImportError:
+    Qwen2_5_VLForConditionalGeneration = None
 
 
 logger = logging.get_logger(__name__)
@@ -260,6 +267,13 @@ class BerniniModel(PreTrainedModel):
             f"MLLM attention implement: config.mllm_attn_implementation={config.mllm_attn_implementation}"
         )
         if self.config.mllm_config_path is not None:
+            if Qwen2_5_VLConfig is None or Qwen2_5_VLForConditionalGeneration is None:
+                raise RuntimeError(
+                    "BerniniModel needs Qwen2.5-VL (transformers>=4.45 with the "
+                    "qwen2_5_vl submodule); install transformers==4.57.3 for the "
+                    "full Bernini pipeline. The Bernini-R renderer (run_all_tests.py) "
+                    "does not need it."
+                )
             mllm_config = Qwen2_5_VLConfig.from_pretrained(
                 self.config.mllm_config_path,
                 subfolder=self.config.mllm_subfolder,
