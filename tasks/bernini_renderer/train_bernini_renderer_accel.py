@@ -43,6 +43,13 @@ import numpy as np
 import torch
 from tqdm import trange
 
+# Make `bernini` importable regardless of how the entry is launched
+# (accelerate puts the script's dir, not the repo root, on sys.path).
+import sys as _sys
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _REPO_ROOT not in _sys.path:
+    _sys.path.insert(0, _REPO_ROOT)
+
 from bernini.models.transformer_wan import WanRotaryPosEmbed
 from bernini.training.args import as_plain_dict, parse_cli
 from bernini.training.collator import RendererPackingCollator

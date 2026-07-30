@@ -26,6 +26,13 @@ set -euo pipefail
 export TOKENIZERS_PARALLELISM=${TOKENIZERS_PARALLELISM:-false}
 export MODELING_BACKEND=hf
 
+# Put the repository root on PYTHONPATH so `import bernini` resolves inside the
+# accelerate-spawned subprocesses (whose sys.path[0] is the entry script's dir,
+# not the repo root).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+export PYTHONPATH="${REPO_ROOT}:${PYTHONPATH:-}"
+
 NNODES=${NNODES:-1}
 NPROC_PER_NODE=${NPROC_PER_NODE:-8}
 NODE_RANK=${NODE_RANK:-0}
@@ -53,7 +60,7 @@ else:
     print(f"cuda_available={torch.cuda.is_available()} device_count={torch.cuda.device_count()}")
 PY
 
-LAUNCH_ARGS="--num_cpu_threads_per_process 8 --num_processes ${NPROC_PER_NODE}"
+LAUNCH_ARGS="--num_cpu_threads_per_process 8 --num_processes ${NPROC_PER_NODE} --mixed_precision bf16"
 if [ "${NPROC_PER_NODE}" -gt 1 ]; then
   LAUNCH_ARGS="${LAUNCH_ARGS} --multi_gpu"
 fi
