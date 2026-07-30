@@ -1,0 +1,95 @@
+model:
+  config_path: configs/bernini_renderer_wan22
+  vae_config_path: null
+  # High-noise expert: keep transformer_1, skip transformer_2.
+  # wan22_base must point at a local Wan2.2 diffusers dir or a cached HF repo.
+  model_config:
+    skip_transformer_2: true
+    wan22_base: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+    use_src_id_rotary_emb: true
+
+data:
+  # Single source: a parquet dir produced by tools/preprocess_data.py.
+  # For multi-source, set `multisource` (see below) instead of train_path.
+  train_path: /path/to/preprocessed_parquet
+  datasets_type: iterable
+  data_type: diffusion
+  max_seq_len: 150000
+  noise_scheduler_config:
+    shift_config:
+      t2i: 3.0
+      t2v: 3.0
+      i2i: 4.0
+      r2i: 4.0
+      r2v: 4.0
+      v2v: 5.0
+      i2v: 5.0
+      vi2v: 5.0
+      vr2v: 5.0
+      vrc2v: 5.0
+      mv2v: 5.0
+    weighting_scheme_config:
+      t2i: logit_normal
+      i2i: logit_normal
+      r2i: logit_normal
+      t2v: mode
+      v2v: mode
+      r2v: mode
+      i2v: mode
+      vi2v: mode
+      vr2v: mode
+      vrc2v: mode
+      mv2v: mode
+    noise_tmin: 0.875   # high-noise expert range [0.875, 1.0]
+    noise_tmax: 1.0
+  max_vae_frames: 61
+  text_dropout_rate: 0.1
+  img_dropout_rate: 0.1
+  video_dropout_rate: 0.1
+  dataloader:
+    num_workers: 1
+    prefetch_factor: 2
+    drop_last: true
+  # Optional weighted multi-source (uncomment to use instead of train_path):
+  # multisource:
+  #   sources: [/path/to/t2v_parquet, /path/to/v2v_parquet]
+  #   names: ["t2v$example_t2v", "v2v$example_v2v"]
+  #   schedule:
+  #     - schedule_type: const
+  #       weights: [1.0, 1.0]
+
+train:
+  micro_batch_size: 1
+  global_batch_size: 8
+  gradient_accumulation_steps: null   # auto = global // (micro * world)
+  num_train_epochs: 1
+  max_steps: 100000
+  seed: 42
+  init_device: cpu
+  freeze_modules: ["t5_text_encoder"]
+  use_src_id_rotary_emb: true
+  gradient_checkpointing: true
+  mixed_precision: bf16
+  ddp_backend: ""        # auto: hccl on NPU, nccl on CUDA; force with --train.ddp_backend
+  pad_to_length: false
+  empty_cache_steps: 1
+  optimizer:
+    type: adamw
+    lr: 1.0e-5
+    lr_start: 7.1e-7
+    lr_min: 0.0
+    lr_warmup_ratio: 0.004
+    lr_decay_style: constant
+    weight_decay: 0.01
+    max_grad_norm: 1.0
+  checkpoint:
+    output_dir: bernini_renderer_train_accel
+    save_steps: 1000
+    save_path: null
+    load_path: null     # set to an accel_state dir to resume
+    save_hf_weights: true
+    save_async: false
+  wandb:
+    enable: false
+    project: bernini_renderer
+    name: high_accel

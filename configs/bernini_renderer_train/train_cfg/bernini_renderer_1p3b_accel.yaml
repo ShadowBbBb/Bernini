@@ -1,0 +1,96 @@
+model:
+  config_path: configs/bernini_renderer_wan21_1p3b
+  vae_config_path: null
+  # 1.3B: fine-tuned from Wan2.1-1.3B (single expert, full noise range 0~1.0).
+  # wan22_base must be a LOCAL 1.3B diffusers dir with text_encoder/transformer/vae/tokenizer.
+  model_config:
+    skip_transformer_2: true
+    wan22_base: checkpoints/bernini_1.3b
+    use_src_id_rotary_emb: true
+
+data:
+  # Smoke test: random-tensor dataset, no parquet / VAE / Qwen2.5-VL needed.
+  # Switch to real data: --data.fake_dataset false --data.train_path /path/to/parquet
+  fake_dataset: true
+  fake:
+    task_type: v2v          # t2v / v2v / t2i
+    num_frames: 81          # real training value; lower (e.g. 5) for a faster smoke
+    height: 480
+    width: 832
+    z_dim: 16
+    prompt: "a sample clip for smoke test"
+    num_samples: 0          # 0 = infinite
+  datasets_type: iterable
+  data_type: diffusion
+  max_seq_len: 150000
+  noise_scheduler_config:
+    shift_config:
+      t2i: 3.0
+      t2v: 3.0
+      i2i: 4.0
+      r2i: 4.0
+      r2v: 4.0
+      v2v: 5.0
+      i2v: 5.0
+      vi2v: 5.0
+      vr2v: 5.0
+      vrc2v: 5.0
+      mv2v: 5.0
+    weighting_scheme_config:
+      t2i: logit_normal
+      i2i: logit_normal
+      r2i: logit_normal
+      t2v: mode
+      v2v: mode
+      r2v: mode
+      i2v: mode
+      vi2v: mode
+      vr2v: mode
+      vrc2v: mode
+      mv2v: mode
+    noise_tmin: 0.0        # 1.3B single expert: full range
+    noise_tmax: 1.0
+  max_vae_frames: 61
+  text_dropout_rate: 0.0   # disable dropout for deterministic smoke
+  img_dropout_rate: 0.0
+  video_dropout_rate: 0.0
+  dataloader:
+    num_workers: 1
+    prefetch_factor: 2
+    drop_last: true
+
+train:
+  micro_batch_size: 1
+  global_batch_size: 8       # = micro * world_size for an 8-card DDP run
+  gradient_accumulation_steps: null
+  num_train_epochs: 1
+  max_steps: 20             # smoke; bump for real training
+  seed: 42
+  init_device: cpu
+  freeze_modules: ["t5_text_encoder"]
+  use_src_id_rotary_emb: true
+  gradient_checkpointing: true
+  mixed_precision: bf16
+  ddp_backend: ""           # auto: hccl on NPU, nccl on CUDA
+  pad_to_length: false
+  empty_cache_steps: 1
+  optimizer:
+    type: adamw
+    lr: 1.0e-5
+    lr_start: 7.1e-7
+    lr_min: 0.0
+    lr_warmup_ratio: 0.004
+    lr_decay_style: constant
+    weight_decay: 0.01
+    max_grad_norm: 1.0
+  checkpoint:
+    output_dir: bernini_renderer_train_accel_1p3b
+    save_steps: 10
+    save_path: null
+    load_path: null
+    save_hf_weights: true
+    save_async: false
+  wandb:
+    enable: false
+    project: bernini_renderer
+    name: 1p3b_smoke
