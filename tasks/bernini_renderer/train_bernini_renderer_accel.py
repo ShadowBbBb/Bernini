@@ -186,16 +186,18 @@ def main() -> None:
     accelerator.print(f"[accel] backend={backend} world_size={world_size} grad_accum={grad_accum} "
                       f"mixed_precision={args.train.mixed_precision}")
     if accelerator.is_main_process:
+        os.makedirs(args.train.checkpoint.output_dir, exist_ok=True)
         with open(os.path.join(args.train.checkpoint.output_dir, "accel_args.json"), "w") as f:
             json.dump(as_plain_dict(args), f, indent=2, default=str)
 
     # ---- model ----
-    from bernini.models.renderer import BerniniRendererModel
+    from bernini.models.renderer import BerniniRendererConfig, BerniniRendererModel
 
     model_config = dict(args.model.model_config)
     model_config.setdefault("dtype", torch.bfloat16)
     model_config.setdefault("use_src_id_rotary_emb", args.train.use_src_id_rotary_emb)
-    model = BerniniRendererModel.from_pretrained(args.model.config_path, **model_config)
+    renderer_config = BerniniRendererConfig.from_pretrained(args.model.config_path, **model_config)
+    model = BerniniRendererModel(renderer_config)
     model.train()
     if args.train.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
