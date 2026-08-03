@@ -183,12 +183,20 @@ def _set_nested(args: AccelerateArgs, dotted_key: str, value: Any) -> None:
         setattr(obj, key, value)
     elif len(parts) == 3:
         group, sub, key = parts
-        if (group, sub) not in _SUBGROUP_CLASSES:
-            raise ValueError(f"unknown argument group '{group}.{sub}'")
-        obj = getattr(getattr(args, group), sub)
-        if not hasattr(obj, key):
-            raise ValueError(f"unknown argument '{group}.{sub}.{key}'")
-        setattr(obj, key, value)
+        parent = getattr(args, group)
+        if (group, sub) in _SUBGROUP_CLASSES:
+            obj = getattr(parent, sub)
+            if not hasattr(obj, key):
+                raise ValueError(f"unknown argument '{group}.{sub}.{key}'")
+            setattr(obj, key, value)
+        else:
+            # dict sub-field override, e.g. --model.model_config.wan22_base /path
+            sub_val = getattr(parent, sub, None)
+            if not isinstance(sub_val, dict):
+                raise ValueError(
+                    f"unknown argument '{group}.{sub}' (not a registered subgroup or dict field)"
+                )
+            sub_val[key] = value
     else:
         raise ValueError(
             f"override key must be '<group>.<key>' or '<group>.<subgroup>.<key>', got '{dotted_key}'"
