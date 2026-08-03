@@ -41,7 +41,6 @@ from typing import Any, Dict, List
 
 import numpy as np
 import torch
-import torch.distributed as dist
 from tqdm import trange
 
 # Make `bernini` importable regardless of how the entry is launched
@@ -198,19 +197,12 @@ def main() -> None:
     model_config.setdefault("dtype", torch.bfloat16)
     model_config.setdefault("use_src_id_rotary_emb", args.train.use_src_id_rotary_emb)
     renderer_config = BerniniRendererConfig.from_pretrained(args.model.config_path, **model_config)
-    # Stagger the (disk-heavy) model construction across ranks to avoid
-    # concurrent checkpoint-shard reads thrashing the disk. Each rank loads
-    # the full real weights in turn; all ranks end with identical weights, so
-    # the subsequent DDP wrap sees synced parameters. Mirrors the T5 load in
-    # the full Bernini pipeline (bernini/models/bernini.py).
-    if dist.is_available() and dist.is_initialized():
-        for _r in range(dist.get_world_size()):
-            if _r == dist.get_rank():
-                accelerator.print(f"[rank{_r}] loading model weights ...")
-                model = BerniniRendererModel(renderer_config)
-            dist.barrier()
-    else:
-        model = BerniniRendererModel(renderer_config)
+    # All ranks load the model concurrently. HF from_pretrained inserts internal
+    # collectives when dist is initialized; having every rank enter from_pretrained
+    # together lets them all reach that internal barrier (staggering deadlocks it).
+    # Each rank reads the same shards deterministically, so weights are identical
+    # and the subsequent DDP wrap sees synced parameters.
+    model = BerniniRendererModel(renderer_config)
     model.train()
     if args.train.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
         model.gradient_checkpointing_enable()
