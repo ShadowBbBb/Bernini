@@ -264,7 +264,14 @@ def main() -> None:
         args.train.optimizer.lr_warmup_ratio,
     )
 
-    model, optimizer, dataloader, lr_scheduler = accelerator.prepare(model, optimizer, dataloader, lr_scheduler)
+    # NOTE: the dataloader is intentionally NOT passed to accelerator.prepare().
+    # accelerate would broadcast each batch from rank0 to all ranks (IterableDataset
+    # default), but HCCL rejects the batch's bool (vae_latents_mask) / complex64
+    # (input_vae_rope) / int64 dtypes -> "Unsupported data type for HCCL".
+    # Our datasets are already per-rank (FakeRendererDataset is RANK-seeded;
+    # ParquetRendererDataset should be rank-sharded for real data), so each rank
+    # reads its own batches and move_to_device() handles CPU->NPU placement.
+    model, optimizer, lr_scheduler = accelerator.prepare(model, optimizer, lr_scheduler)
 
     global_step = 0
     if args.train.checkpoint.load_path:

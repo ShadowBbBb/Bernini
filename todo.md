@@ -3,19 +3,15 @@
 > 每次重写本文件，只放本次要执行的命令。服务器侧 `git pull origin main` 后 `cat todo.md` 复制执行。
 
 ```bash
-# 1. 落 checkpoint 到本地盘（已存在则跳过，-r 递归 -n 不覆盖已有）
+# 1. checkpoint 已落本地盘则跳过（首次才 cp）
 mkdir -p /home/ma-user/work/x50055359/bernini_1.3b
-cp -rn /data/jijunxiang/Bernini/checkpoints/bernini_1.3b/* /home/ma-user/work/x50055359/bernini_1.3b/
+cp -rn /data/jijunxiang/Bernini/checkpoints/bernini_1.3b/* /home/ma-user/work/x50055359/bernini_1.3b/ 2>/dev/null || true
 
-# 2. 校验 shard 数一致
-ls /data/jijunxiang/Bernini/checkpoints/bernini_1.3b/text_encoder | wc -l
-ls /home/ma-user/work/x50055359/bernini_1.3b/text_encoder | wc -l
-
-# 3. 拉最新
+# 2. 拉最新（拿 dataloader 不进 prepare 的修复）
 cd /data/jijunxiang/Bernini
 git pull origin main
 
-# 4. 跑（CLI 覆盖 wan22_base 指本地盘，不动 yaml）
+# 3. 跑（CLI 覆盖 wan22_base 指本地盘，不动 yaml）
 ASCEND_RT_VISIBLE_DEVICES=6,7 NPROC_PER_NODE=2 \
   bash scripts/bernini_r_train/train_bernini_renderer_accel.sh \
   configs/bernini_renderer_train/train_cfg/bernini_renderer_1p3b_accel.yaml \
@@ -23,8 +19,11 @@ ASCEND_RT_VISIBLE_DEVICES=6,7 NPROC_PER_NODE=2 \
 ```
 
 ## 预期
-本地盘读 shard 不经 S3 FUSE，`Loading checkpoint shards` 能往前走 → 5/5 → 进训练循环。
+- 模型加载已验证（5/5 + 2/2 shard，~30s）。
+- 本次 dataloader 不再 `accelerator.prepare`，跳过 batch 广播 → 不再 `Unsupported data type for HCCL`。
+- 应进入训练循环：tqdm `0/20` 往前走，每步打印 loss/lr，到第 10 步存 ckpt。
 
-## 若仍卡
-- 进度一直 0 不动 + 服务器变卡 → 仍是 S3 FUSE 残留或真 collective，把日志发我，上方案 B（改 `__init__`：rank0 独占 load + broadcast）。
-- 跑通但有新错（如 NPU 算子、shape）→ 发日志继续。
+## 若仍报错
+- 若又冒 HCCL `Unsupported data type` → 说明还有别的 collective 走了 bool/complex，把日志发我。
+- 若 `double dtype` 警告后真崩 → 找哪里 `.double()`，改成 `.float()`。
+- 若 NPU 算子报错（如某个 aten 算子 NPU 没 impl）→ 发日志继续。
