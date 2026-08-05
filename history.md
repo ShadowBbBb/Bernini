@@ -12,4 +12,5 @@
 - c30f243 修训练入口：makedirs + 从 config 构建模型（非 from_pretrained）
 - 88fbce1 模型加载改回全 rank 并发（试过错峰 fa67b94 已废；绕 from_pretrained collective 死锁；S3 FUSE 读盘卡死待本地盘验证）
 - bb7d386 args.py 加 dict 子键 CLI 覆盖（`--model.model_config.wan22_base` 等）；建 todo.md/history.md 约定（WorkingPipeline 规则⑤⑥）
-- 本次：训练入口 dataloader 不进 accelerator.prepare（跳过 batch 广播，绕 HCCL bool/complex64/int64 dtype 报错）；重写 todo.md
+- 47a9e69 训练入口 dataloader 不进 accelerator.prepare（跳过 batch 广播，绕 HCCL bool/complex64/int64 dtype 报错）；重写 todo.md
+- 本次：grad-ckpt 改 `use_reentrant=False`（HF 4.57.3 默认 reentrant 不接受 **kwargs，WanTransformerBlock 的 cu_seqlens_* 等 kwarg 被拒）

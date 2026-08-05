@@ -7,7 +7,7 @@
 mkdir -p /home/ma-user/work/x50055359/bernini_1.3b
 cp -rn /data/jijunxiang/Bernini/checkpoints/bernini_1.3b/* /home/ma-user/work/x50055359/bernini_1.3b/ 2>/dev/null || true
 
-# 2. 拉最新（拿 dataloader 不进 prepare 的修复）
+# 2. 拉最新（拿 use_reentrant=False 的 grad-ckpt 修复）
 cd /data/jijunxiang/Bernini
 git pull origin main
 
@@ -19,11 +19,12 @@ ASCEND_RT_VISIBLE_DEVICES=6,7 NPROC_PER_NODE=2 \
 ```
 
 ## 预期
-- 模型加载已验证（5/5 + 2/2 shard，~30s）。
-- 本次 dataloader 不再 `accelerator.prepare`，跳过 batch 广播 → 不再 `Unsupported data type for HCCL`。
-- 应进入训练循环：tqdm `0/20` 往前走，每步打印 loss/lr，到第 10 步存 ckpt。
+- 模型加载 5/5 + 2/2（已验证，~30s）。
+- dataloader 不再 prepare（已修，跳过 batch 广播）。
+- 梯度检查点改 `use_reentrant=False`（本次修），`**kwargs` 能进 `WanTransformerBlock.forward`。
+- **应进入 forward/backward**，tqdm `0/20` 往前走，step 1 出 loss，第 10 步存 ckpt。
 
 ## 若仍报错
-- 若又冒 HCCL `Unsupported data type` → 说明还有别的 collective 走了 bool/complex，把日志发我。
-- 若 `double dtype` 警告后真崩 → 找哪里 `.double()`，改成 `.float()`。
-- 若 NPU 算子报错（如某个 aten 算子 NPU 没 impl）→ 发日志继续。
+- 又冒 `Unexpected keyword arguments` → HF 版本不认 `gradient_checkpointing_kwargs`，退而关 grad-ckpt：`--train.gradient_checkpointing false`。
+- `double dtype` 警告后真崩 → 找 `.double()` 改 `.float()`。
+- NPU 算子没实现 → 发日志继续。

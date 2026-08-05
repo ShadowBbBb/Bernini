@@ -205,7 +205,12 @@ def main() -> None:
     model = BerniniRendererModel(renderer_config)
     model.train()
     if args.train.gradient_checkpointing and hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
+        # use_reentrant=False is required: the WanTransformerBlock.forward takes
+        # **kwargs (cu_seqlens_*, max_seqlen_*, origin_hidden_states_seq_len), and
+        # the default use_reentrant=True checkpoint path rejects kwargs.
+        model.gradient_checkpointing_enable(
+            gradient_checkpointing_kwargs={"use_reentrant": False}
+        )
     for module_name in args.train.freeze_modules:
         freeze_module(model, module_name, detach=False)
     for module_name in args.train.detach_modules:
