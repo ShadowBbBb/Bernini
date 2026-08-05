@@ -7,7 +7,7 @@
 mkdir -p /home/ma-user/work/x50055359/bernini_1.3b
 cp -rn /data/jijunxiang/Bernini/checkpoints/bernini_1.3b/* /home/ma-user/work/x50055359/bernini_1.3b/ 2>/dev/null || true
 
-# 2. 拉最新（拿 use_reentrant=False 的 grad-ckpt 修复）
+# 2. 拉最新（拿 clip_grad_norm_ 的 model.parameters() 修复）
 cd /data/jijunxiang/Bernini
 git pull origin main
 
@@ -19,12 +19,13 @@ ASCEND_RT_VISIBLE_DEVICES=6,7 NPROC_PER_NODE=2 \
 ```
 
 ## 预期
-- 模型加载 5/5 + 2/2（已验证，~30s）。
-- dataloader 不再 prepare（已修，跳过 batch 广播）。
-- 梯度检查点改 `use_reentrant=False`（本次修），`**kwargs` 能进 `WanTransformerBlock.forward`。
-- **应进入 forward/backward**，tqdm `0/20` 往前走，step 1 出 loss，第 10 步存 ckpt。
+- 模型加载 5/5 + 2/2（~30s，已验证）。
+- dataloader 不广播、grad-ckpt `use_reentrant=False`（已修）→ forward/backward 跑通。
+- 本次修 `clip_grad_norm_(model.parameters(), ...)`（原传 `model` 不可迭代）→ step 1 应能 clip + 出 loss + 继续跑。
+- tqdm `0/20` 往前走，step 1 出 loss/lr，第 10 步存 ckpt。
 
 ## 若仍报错
-- 又冒 `Unexpected keyword arguments` → HF 版本不认 `gradient_checkpointing_kwargs`，退而关 grad-ckpt：`--train.gradient_checkpointing false`。
+- 又冒 `not iterable` / DDP 相关 → 发日志，多半是某 API 对 DDP 包装对象的用法。
 - `double dtype` 警告后真崩 → 找 `.double()` 改 `.float()`。
 - NPU 算子没实现 → 发日志继续。
+- 跑通但有 loss=nan → 数值问题，把前几步 loss 发我。

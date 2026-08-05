@@ -306,7 +306,9 @@ def main() -> None:
                 loss = reduce_diff_loss(output.diff_loss, batch["target_lens"], accelerator)
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
-                    accelerator.clip_grad_norm_(model, args.train.optimizer.max_grad_norm)
+                    # clip_grad_norm_ takes an iterable of params, not a Module/DDP
+                    # object (which is not directly iterable).
+                    accelerator.clip_grad_norm_(model.parameters(), args.train.optimizer.max_grad_norm)
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
